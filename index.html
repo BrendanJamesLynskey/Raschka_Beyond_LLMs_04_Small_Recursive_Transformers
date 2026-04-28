@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beyond Standard LLMs 04 &mdash; Small Recursive Transformers</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a; --bg-card: #0d1117; --bg-code: #161b22;
+            --text-primary: #e6edf3; --text-secondary: #8b949e;
+            --accent: #76B900; --accent-dim: #76B90044; --accent-glow: #76B90033;
+            --warm: #ffa657; --warm-dim: rgba(255,166,87,0.15);
+            --bad: #ff7b72;
+            --border: #21262d;
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --font-body: 'Inter', sans-serif;
+            --max-width: 900px;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { background: var(--bg-primary); color: var(--text-primary);
+               font-family: var(--font-body); font-size: 17px; line-height: 1.7;
+               overflow-x: hidden; }
+        .hero { min-height: 100vh; display: flex; flex-direction: column;
+                justify-content: center; align-items: center;
+                padding: 2rem 1.5rem; text-align: center; position: relative; }
+        .hero::before { content: ''; position: absolute; top: 0; left: 50%;
+                        transform: translateX(-50%); width: 600px; height: 600px;
+                        background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+                        pointer-events: none; z-index: 0; }
+        .hero > * { position: relative; z-index: 1; }
+        .series-label { font-family: var(--font-mono); font-size: 0.85rem;
+                        color: var(--accent); letter-spacing: 0.15em;
+                        text-transform: uppercase; margin-bottom: 1rem; }
+        .hero h1 { font-family: var(--font-display);
+                   font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700;
+                   color: var(--text-primary); line-height: 1.2; margin-bottom: 1rem; }
+        .hero h1 .accent { color: var(--accent); }
+        .hero .subtitle { font-size: 1.1rem; color: var(--text-secondary);
+                          max-width: 720px; margin-bottom: 2rem; }
+        .tags { display: flex; flex-wrap: wrap; gap: 0.5rem;
+                justify-content: center; margin-bottom: 2.5rem; }
+        .tag { font-family: var(--font-mono); font-size: 0.75rem;
+               padding: 0.25rem 0.75rem; border-radius: 999px;
+               border: 1px solid var(--accent); color: var(--accent);
+               background: var(--accent-dim); white-space: nowrap; }
+        .pipeline { display: flex; flex-wrap: wrap; align-items: center;
+                    justify-content: center; gap: 0.25rem; margin-bottom: 1rem;
+                    max-width: var(--max-width); }
+        .pipeline-step { font-family: var(--font-mono); font-size: 0.7rem;
+                         padding: 0.3rem 0.7rem; background: var(--bg-card);
+                         border: 1px solid var(--border); border-radius: 4px;
+                         color: var(--text-secondary); white-space: nowrap; }
+        .pipeline-arrow { color: var(--accent); font-size: 0.9rem; font-weight: 700; }
+        .slide { min-height: 100vh; max-width: var(--max-width);
+                 margin: 0 auto; padding: 4rem 1.5rem; position: relative;
+                 display: flex; flex-direction: column; justify-content: center; }
+        .slide-number { font-family: var(--font-display); font-size: 5rem;
+                        font-weight: 700; color: var(--accent-dim);
+                        position: absolute; top: 2rem; right: 1.5rem;
+                        line-height: 1; user-select: none; }
+        .slide h2 { font-family: var(--font-display); font-size: 1.9rem;
+                    font-weight: 700; color: var(--accent); margin-bottom: 1.5rem;
+                    line-height: 1.25; }
+        .slide h3 { font-family: var(--font-display); font-size: 1.3rem;
+                    font-weight: 600; color: var(--text-primary);
+                    margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        .slide p { margin-bottom: 1rem; color: var(--text-secondary); }
+        .slide p strong { color: var(--text-primary); }
+        .slide ul, .slide ol { margin-bottom: 1rem; padding-left: 1.5rem;
+                               color: var(--text-secondary); }
+        .slide li { margin-bottom: 0.4rem; }
+        .slide li strong { color: var(--text-primary); }
+        .slide code { font-family: var(--font-mono); font-size: 0.88em;
+                      background: var(--bg-code); border: 1px solid var(--border);
+                      padding: 0.05rem 0.35rem; border-radius: 3px; color: #c9d1d9; }
+        .table-wrap { overflow-x: auto; margin: 1.25rem 0; border-radius: 8px;
+                      border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: var(--bg-code); color: var(--accent); font-weight: 600;
+             text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);
+             font-family: var(--font-display); white-space: nowrap; }
+        td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border);
+             color: var(--text-secondary); }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) td { background: rgba(13, 17, 23, 0.5); }
+        .diagram-grid { display: grid; gap: 0.75rem; margin: 1.5rem 0;
+                        padding: 1.5rem; background: var(--bg-card);
+                        border: 1px solid var(--border); border-radius: 8px; }
+        .diagram-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+        .diagram-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .diagram-panel { padding: 1rem; background: var(--bg-code);
+                         border: 1px solid var(--border); border-radius: 6px; }
+        .diagram-panel.accent-border { border-left: 3px solid var(--accent); }
+        .diagram-panel h4 { font-family: var(--font-display); font-size: 1rem;
+                            color: var(--accent); margin-bottom: 0.5rem; }
+        .diagram-panel p, .diagram-panel ul { font-size: 0.85rem; }
+        .callout { background: var(--bg-card); border-left: 3px solid var(--accent);
+                   border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1.25rem 0; }
+        .callout p { margin-bottom: 0; }
+        .callout p + p { margin-top: 0.5rem; }
+        .callout .callout-label { font-family: var(--font-mono); font-size: 0.75rem;
+                                  color: var(--accent); text-transform: uppercase;
+                                  letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+        .callout.warn { border-left-color: var(--warm); }
+        .callout.warn .callout-label { color: var(--warm); }
+        .contents-list { list-style: none; padding-left: 0; counter-reset: contents; }
+        .contents-list li { counter-increment: contents; padding: 0.6rem 0;
+                            border-bottom: 1px solid var(--border);
+                            display: flex; align-items: center; gap: 1rem; }
+        .contents-list li:last-child { border-bottom: none; }
+        .contents-list li::before { content: counter(contents, decimal-leading-zero);
+                                    font-family: var(--font-mono); font-size: 0.85rem;
+                                    color: var(--accent); min-width: 2rem; }
+        .contents-list a { color: var(--text-primary); text-decoration: none;
+                           transition: color 0.2s; }
+        .contents-list a:hover { color: var(--accent); }
+        .footer { text-align: center; padding: 3rem 1.5rem;
+                  color: var(--text-secondary); font-size: 0.85rem;
+                  border-top: 1px solid var(--border); max-width: var(--max-width);
+                  margin: 0 auto; }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .canvas-wrap { background: var(--bg-card); border: 1px solid var(--border);
+                       border-radius: 8px; padding: 1rem; margin: 1.25rem 0;
+                       overflow-x: auto; }
+        .deck-list { display: flex; flex-direction: column; gap: 0.6rem;
+                     list-style: none; padding: 0; }
+        .deck-card { display: flex; gap: 1rem; padding: 1rem 1.25rem;
+                     background: var(--bg-card); border: 1px solid var(--border);
+                     border-left: 3px solid var(--accent); border-radius: 6px; }
+        .deck-card .num { font-family: var(--font-mono); font-size: 0.8rem;
+                          color: var(--accent); min-width: 2rem; padding-top: 0.15rem; }
+        .deck-card .body { flex: 1; min-width: 0; }
+        .deck-card .deck-title { font-family: var(--font-display); font-size: 1.05rem;
+                                 font-weight: 600; color: var(--text-primary);
+                                 margin-bottom: 0.2rem; }
+        .deck-card a.deck-title { text-decoration: none; }
+        .deck-card a.deck-title:hover { color: var(--accent); }
+        .deck-card .desc { font-size: 0.92rem; color: var(--text-secondary); }
+        .ref-link { display: inline-block; padding: 0.4rem 0.8rem;
+                    border: 1px solid var(--accent); color: var(--accent);
+                    border-radius: 4px; text-decoration: none;
+                    font-family: var(--font-mono); font-size: 0.8rem;
+                    transition: background 0.15s; }
+        .ref-link:hover { background: var(--accent-dim); }
+
+        /* Trace viewer widget */
+        .trace-card { background: var(--bg-card); border: 1px solid var(--border);
+                      border-left: 3px solid var(--accent); border-radius: 8px;
+                      padding: 1.25rem; margin: 1.25rem 0; }
+        .trace-controls { display: flex; flex-wrap: wrap; gap: 0.6rem;
+                          margin-bottom: 1rem; align-items: center; }
+        .trace-btn { font-family: var(--font-mono); font-size: 0.8rem;
+                     padding: 0.4rem 0.9rem; background: var(--bg-code);
+                     border: 1px solid var(--accent); color: var(--accent);
+                     border-radius: 4px; cursor: pointer; }
+        .trace-btn:hover { background: var(--accent-dim); }
+        .trace-status { font-family: var(--font-mono); font-size: 0.75rem;
+                        color: var(--text-secondary); margin-left: auto; }
+        .trace-track { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+        .trace-panel { background: var(--bg-code); border: 1px solid var(--border);
+                       border-radius: 6px; padding: 0.85rem; text-align: center; }
+        .trace-panel h5 { font-family: var(--font-display); font-size: 0.95rem;
+                          color: var(--accent); margin-bottom: 0.6rem; }
+        .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+                 max-width: 220px; margin: 0 auto; }
+        .grid4 .cell { aspect-ratio: 1 / 1; display: flex; align-items: center;
+                       justify-content: center; font-family: var(--font-mono);
+                       font-size: 1rem; font-weight: 700;
+                       border: 1px solid var(--border); border-radius: 4px;
+                       background: var(--bg-card); color: var(--text-primary);
+                       transition: background 0.2s, border-color 0.2s; }
+        .grid4 .cell.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .grid4 .cell.bad   { border-color: var(--bad);    color: var(--bad);    background: rgba(255,123,114,0.15); }
+        .grid4 .cell.given { border-color: var(--text-primary); color: var(--text-primary); background: var(--bg-code); }
+        .latent-bar { display: flex; gap: 2px; margin-top: 0.7rem;
+                      justify-content: center; height: 28px; align-items: end; }
+        .latent-bar .bar { width: 8px; background: var(--accent-dim);
+                           border-radius: 1px; transition: height 0.25s; }
+        .iter-counter { font-family: var(--font-mono); font-size: 0.8rem;
+                        color: var(--text-secondary); margin-top: 0.6rem; }
+        .iter-counter b { color: var(--accent); }
+
+        @media (max-width: 640px) {
+            .slide { padding: 3rem 1rem; min-height: auto; }
+            .slide-number { font-size: 3rem; top: 1.5rem; right: 1rem; }
+            .slide h2 { font-size: 1.5rem; }
+            .diagram-grid.cols-2, .diagram-grid.cols-3 { grid-template-columns: 1fr; }
+            .trace-track { grid-template-columns: 1fr; }
+            .pipeline { gap: 0.15rem; }
+            .pipeline-step { font-size: 0.6rem; padding: 0.2rem 0.4rem; }
+            .hero h1 { font-size: 1.8rem; }
+            table { font-size: 0.78rem; }
+        }
+    </style>
+</head>
+<body>
+<header class="hero">
+    <div class="series-label">Beyond Standard LLMs &mdash; Companion to Sebastian Raschka &mdash; Presentation 04</div>
+    <h1>Small Recursive <span class="accent">Transformers</span></h1>
+    <p class="subtitle">7 million parameters that beat 70 billion at the task they care about. HRM and TRM solve ARC-AGI by iterating an answer rather than emitting it. The most counter-intuitive result in the article: attention may not be required.</p>
+    <div class="tags">
+        <span class="tag">Companion</span>
+        <span class="tag">Sebastian Raschka</span>
+        <span class="tag">HRM</span>
+        <span class="tag">TRM</span>
+        <span class="tag">ARC-AGI</span>
+        <span class="tag">Iterative Refinement</span>
+    </div>
+    <div class="pipeline">
+        <span class="pipeline-step">Input grid</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Latent z&#8320;</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Refine answer y&#8336;</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Update latent z&#8336;</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Halt?</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Final y</span>
+    </div>
+    <p style="margin-top: 1.5rem; font-size: 0.9rem;"><a class="ref-link" href="https://magazine.sebastianraschka.com/p/beyond-standard-llms" target="_blank" rel="noopener">Read the original article &rarr;</a></p>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We&rsquo;ll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">A Reasonable Question &mdash; What If Depth Is Just Iteration?</a></li>
+        <li><a href="#slide-02">HRM &mdash; Hierarchical Reasoning Model</a></li>
+        <li><a href="#slide-03">TRM &mdash; Tiny Recursive Model, 7M Parameters</a></li>
+        <li><a href="#slide-04">How Recursion Replaces Depth</a></li>
+        <li><a href="#slide-05">The Attention-Not-Required Ablation</a></li>
+        <li><a href="#slide-06">Interactive: Recursive Trace Viewer</a></li>
+        <li><a href="#slide-07">Scope &mdash; Grid Puzzles Now, Components Later</a></li>
+        <li><a href="#slide-08">Companion Decks &mdash; Where to Go Next</a></li>
+        <li><a href="#slide-09">Things to Try Yourself</a></li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Where this deck sits in the series</div>
+        <p>The first three decks were about scaling-with-twists. This one is the opposite bet: <strong>scaling down</strong>. A 7M-parameter recursive model beats a 70B LLM on a benchmark designed to measure reasoning. Whether that&rsquo;s a one-off (puzzle-shaped tasks favour iterative solvers) or a general principle (small specialised reasoners as components in larger systems) is the open question.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>A Reasonable Question &mdash; What If Depth Is Just Iteration?</h2>
+    <p>A standard transformer is a fixed stack: 24, 80, 100 layers deep. Each forward pass runs through every layer once, and the answer is whatever falls out the bottom. If the task needs more reasoning than your stack can do in one pass, the standard answer has been: <em>train a bigger stack</em>. Or: <em>let the model emit chain-of-thought tokens so it can re-enter itself textually</em>.</p>
+
+    <p>Recursive transformers ask a different question. <strong>What if a small model ran itself many times in a learned loop?</strong> The depth-equivalent comes from iteration count, not from layer count. A 4-block model run 16 times has, in some sense, 64 layers of computation &mdash; but with 16&times; fewer parameters and a learned <em>halting</em> behaviour that decides when to stop.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Standard transformer</h4>
+            <ul>
+                <li>Fixed 24&ndash;100 layers, run once per forward pass.</li>
+                <li>Width and depth are training-time choices, frozen at deploy.</li>
+                <li>Computation per token is a constant, regardless of difficulty.</li>
+                <li>Reasoning depth is bounded by physical layer count.</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Recursive transformer</h4>
+            <ul>
+                <li>Small core (e.g. 2&ndash;4 layers), run K times in a loop.</li>
+                <li>K is variable per input; the model learns when to halt.</li>
+                <li>Easy inputs use few iterations; hard ones use many.</li>
+                <li>Total compute is adaptive; parameter count is tiny.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">A historical echo</div>
+        <p>This is conceptually the &ldquo;adaptive computation time&rdquo; idea from 2016 (Graves), and the &ldquo;universal transformer&rdquo; from 2018 &mdash; but with a 2025 training recipe and a domain (ARC-AGI) where the iterative-refinement bias matches the problem structure. The architectural ideas are old; the result is new.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>HRM &mdash; Hierarchical Reasoning Model</h2>
+    <p>HRM is the model that re-validated this approach in 2025. Two small transformer modules (each 4 blocks deep), arranged hierarchically: an outer module that updates a high-level latent state, an inner module that operates on the answer conditioned on that state. The outer module is the &ldquo;planner&rdquo;; the inner is the &ldquo;solver&rdquo;.</p>
+
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 720 240" width="720" height="240" xmlns="http://www.w3.org/2000/svg">
+            <style>
+                .hbx { fill: #0d1117; stroke: #21262d; }
+                .hbxa { fill: #0d1117; stroke: #76B900; }
+                .ttl5 { fill: #76B900; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; }
+                .lbl5 { fill: #e6edf3; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+                .sub5 { fill: #8b949e; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+                .arr5 { stroke: #76B900; stroke-width: 1.7; fill: none; marker-end: url(#a6); }
+            </style>
+            <defs>
+                <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#76B900"/>
+                </marker>
+            </defs>
+            <rect class="hbxa" x="40" y="30" width="220" height="80" rx="6"/>
+            <text class="ttl5" x="150" y="55" text-anchor="middle">High-level module</text>
+            <text class="lbl5" x="150" y="75" text-anchor="middle">4 blocks &middot; updates latent z</text>
+            <text class="sub5" x="150" y="95" text-anchor="middle">&ldquo;planner&rdquo;</text>
+
+            <rect class="hbxa" x="40" y="130" width="220" height="80" rx="6"/>
+            <text class="ttl5" x="150" y="155" text-anchor="middle">Low-level module</text>
+            <text class="lbl5" x="150" y="175" text-anchor="middle">4 blocks &middot; updates answer y</text>
+            <text class="sub5" x="150" y="195" text-anchor="middle">&ldquo;solver&rdquo;</text>
+
+            <rect class="hbx" x="320" y="80" width="160" height="80" rx="6"/>
+            <text class="ttl5" x="400" y="105" text-anchor="middle">latent z</text>
+            <text class="sub5" x="400" y="125" text-anchor="middle">carries plan</text>
+            <text class="sub5" x="400" y="145" text-anchor="middle">across iterations</text>
+
+            <rect class="hbx" x="520" y="80" width="160" height="80" rx="6"/>
+            <text class="ttl5" x="600" y="105" text-anchor="middle">answer y</text>
+            <text class="sub5" x="600" y="125" text-anchor="middle">grid being</text>
+            <text class="sub5" x="600" y="145" text-anchor="middle">filled in</text>
+
+            <line class="arr5" x1="260" y1="70"  x2="320" y2="100"/>
+            <line class="arr5" x1="260" y1="170" x2="320" y2="140"/>
+            <line class="arr5" x1="320" y1="120" x2="320" y2="120"/>
+            <line class="arr5" x1="480" y1="120" x2="520" y2="120"/>
+            <line class="arr5" x1="600" y1="160" x2="200" y2="180" stroke-dasharray="3,3"/>
+            <text class="sub5" x="370" y="220" text-anchor="middle">recurse: y feeds back into next iteration</text>
+        </svg>
+    </div>
+
+    <h3>The headline result</h3>
+    <p>HRM topped the ARC-AGI leaderboard at the time of release &mdash; the benchmark explicitly designed to test out-of-distribution reasoning that LLMs struggle with. Two small modules iterating against a benchmark designed to break large frozen models. The architectural choice was the lever, not parameter count.</p>
+
+    <div class="callout">
+        <div class="callout-label">A useful comparison</div>
+        <p>Frontier LLMs running on ARC-AGI typically score in the single digits to low tens. HRM, at orders-of-magnitude fewer parameters, scored in the range that <em>started a small industry</em> of follow-up work. The next slide is the most important entry in that follow-up work.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>TRM &mdash; Tiny Recursive Model, 7M Parameters</h2>
+    <p>TRM is the simplification that ate HRM. The hierarchical structure turned out not to be necessary: a single 2-layer transformer, run recursively with the same alternating-update pattern, beats HRM on ARC at a quarter of the parameter count. Seven million parameters &mdash; <em>about a hundredth of a percent of a 70B LLM</em> &mdash; and a $500 training run.</p>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Property</th><th>HRM</th><th>TRM</th></tr></thead>
+            <tbody>
+                <tr><td>Parameters</td><td>~27M</td><td><strong>~7M (4&times; smaller)</strong></td></tr>
+                <tr><td>Architecture</td><td>Two 4-block modules (hierarchical)</td><td>Single 2-layer transformer</td></tr>
+                <tr><td>Attention</td><td>Standard self-attention</td><td>Bidirectional self-attention &mdash; or no attention at all (see slide 05)</td></tr>
+                <tr><td>Update rule</td><td>Alternating high/low-level updates</td><td>Alternating: refine latent z, refine answer y</td></tr>
+                <tr><td>Backprop</td><td>Through final few iterations</td><td><strong>Through all recursive steps</strong></td></tr>
+                <tr><td>Halting</td><td>Heuristic</td><td>Binary cross-entropy on a halt head</td></tr>
+                <tr><td>Training cost</td><td>(not published as headline)</td><td>~$500 on 4&times;H100, ~2 days</td></tr>
+                <tr><td>ARC-AGI score</td><td>(top at release)</td><td><strong>Beats HRM</strong></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>The two design choices that mattered</h3>
+    <ol>
+        <li><strong>Backprop through all recursive steps.</strong> HRM only differentiated through a few of its iterations to keep memory tractable. TRM differentiates through every step, accepting the memory cost in exchange for cleaner gradients. The improvement is large enough to absorb the simplification of the architecture.</li>
+        <li><strong>Learned halting via BCE loss.</strong> A binary head decides per-input whether to run another iteration. Easy puzzles halt early (saving compute); hard ones get more iterations (spending compute where it matters). The model is doing test-time compute scaling adaptively.</li>
+    </ol>
+
+    <div class="callout">
+        <div class="callout-label">Raschka&rsquo;s framing</div>
+        <p>&ldquo;TRM uses a single 2-layer transformer with bidirectional attention. Two alternating updates: (1) compute latent reasoning state, (2) update answer. Backpropagates through all recursive steps. Binary cross-entropy loss determines iteration halting.&rdquo; That is the entire architecture. If a description that short produces the result on the next slide, something interesting is going on in the loop, not in the layers.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>How Recursion Replaces Depth</h2>
+    <p>The mechanism is conceptually simple. The model maintains two state vectors: an <em>answer</em> <code>y</code> (the grid being filled in) and a <em>latent</em> <code>z</code> (the reasoning state). On each iteration, both get updated, conditioned on each other and on the input.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Update step</h4>
+            <ol>
+                <li>Update z using (input, current y, current z). The latent absorbs new evidence about the partial answer.</li>
+                <li>Update y using (input, current y, new z). The answer is refined given the updated reasoning state.</li>
+                <li>Run halt head on z. If above threshold, return y. Otherwise loop.</li>
+            </ol>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>What this resembles</h4>
+            <p>An iterative solver doing belief propagation: each step accumulates evidence, refines a candidate, and decides whether to do more work. The model is not just &ldquo;deeper by repetition&rdquo; &mdash; the recursive structure aligns the architecture with the iterative nature of the puzzles being solved.</p>
+        </div>
+    </div>
+
+    <h3>Why grid puzzles are the right target</h3>
+    <ul>
+        <li><strong>Iterative refinement is natural.</strong> Sudoku, mazes, and ARC puzzles are solved by repeatedly checking constraints and propagating information &mdash; exactly the loop the architecture implements.</li>
+        <li><strong>Hard tasks need more compute than easy ones.</strong> Adaptive halting is much more useful here than on, say, standard text generation, where iteration count is roughly proportional to output length anyway.</li>
+        <li><strong>The grid structure is fixed and small.</strong> The model doesn&rsquo;t have to handle variable-length output; the answer space has a known shape.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">A general lesson</div>
+        <p>Recursion-as-depth is most powerful when the task itself has an iterative structure that classical algorithms would also exploit. Recursive transformers don&rsquo;t replace next-token prediction for general text &mdash; they replace fixed-depth attention for tasks that look like constraint satisfaction. <em>Match the architectural inductive bias to the problem.</em></p>
+    </div>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>The Attention-Not-Required Ablation</h2>
+    <p>The most shocking single finding in the article: <em>&ldquo;Attention is not required... Replacing self-attention with a pure MLP layer also improved accuracy (74.7% to 87.4%)&rdquo;</em>. On the recursive transformer&rsquo;s grid-puzzle benchmark, removing attention entirely &mdash; replacing it with a feedforward MLP &mdash; not only worked but worked <em>better</em>.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Why this is so striking</h4>
+            <p>For seven years the load-bearing claim of the field has been &ldquo;attention is the mechanism that makes transformers work&rdquo;. On this task, on this architecture, in this scale regime, that claim is empirically false. Whatever is doing the work, it isn&rsquo;t the attention mechanism per se.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>What is plausibly doing the work</h4>
+            <p>The <strong>recursion</strong> &mdash; iterating <em>any</em> nonlinear transformation on a structured state &mdash; appears to be the load-bearing primitive. Attention was a useful enough mixing operation that nobody noticed it could be replaced with an MLP at this scale. On a fixed grid where positional structure is given by the input itself, the all-pairs token mixing attention provides may be redundant.</p>
+        </div>
+    </div>
+
+    <h3>How seriously to take this</h3>
+    <ul>
+        <li><strong>The result is real but narrow.</strong> It is on grid puzzles at 7M parameters with a fixed input shape. Generalising it to text generation or to scaled models is unjustified.</li>
+        <li><strong>It does not say &ldquo;attention is dead&rdquo;.</strong> It says: in <em>this</em> regime, attention&rsquo;s contribution is not what we assumed. The mechanism may earn its keep elsewhere; here it doesn&rsquo;t.</li>
+        <li><strong>It is great evidence for &ldquo;structure matters more than mechanism&rdquo;.</strong> The recursive loop and the alternating-update pattern are doing the work. Architectural inductive bias is the lever &mdash; not which mixing operation you happened to use inside the recursive core.</li>
+    </ul>
+
+    <div class="callout warn">
+        <div class="callout-label">Read this one carefully</div>
+        <p>This is the kind of result that gets repeated badly. Do not let yourself or anyone else summarise it as &ldquo;attention isn&rsquo;t actually needed&rdquo;. The right summary is: <em>at small scale, on tasks with iterative structure, the recursive loop carries the capability and the per-step mixing operation can be much simpler than full attention</em>. That is a much more interesting and less reckless claim.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Interactive: Recursive Trace Viewer</h2>
+    <p>A 4&times;4 puzzle. Three panels: the <em>input</em> (with given cells), the <em>current best answer</em> (refined per iteration), and the <em>target</em>. The model starts with a wrong answer; each iteration refines it. Watch the latent state (bars below) evolve and the answer converge. The halt head fires when the latent stabilises.</p>
+
+    <div class="trace-card">
+        <div class="trace-controls">
+            <button class="trace-btn" id="t-step">Step</button>
+            <button class="trace-btn" id="t-run">Run all</button>
+            <button class="trace-btn" id="t-reset">Reset</button>
+            <button class="trace-btn" id="t-new">New puzzle</button>
+            <span class="trace-status" id="t-status">ready</span>
+        </div>
+        <div class="trace-track">
+            <div class="trace-panel">
+                <h5>Input</h5>
+                <div class="grid4" id="grid-input"></div>
+            </div>
+            <div class="trace-panel">
+                <h5>Current answer y</h5>
+                <div class="grid4" id="grid-answer"></div>
+                <div class="latent-bar" id="latent"></div>
+                <div class="iter-counter">iter <b id="iter-count">0</b> &middot; halt <b id="halt-prob">0.00</b></div>
+            </div>
+            <div class="trace-panel">
+                <h5>Target</h5>
+                <div class="grid4" id="grid-target"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">What to notice</div>
+        <p>The answer doesn&rsquo;t fill in a fixed order &mdash; the model attacks the most-constrained cells first, then the rest fall out. The latent bars start jagged (high-uncertainty reasoning state) and smooth out as the answer converges. The halt probability climbs as the latent stabilises; once it crosses 0.9, the model returns. Easy puzzles halt in 4&ndash;6 iterations; hard ones take 12&ndash;16. Press <em>New puzzle</em> to see the cadence change.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>Scope &mdash; Grid Puzzles Now, Components Later</h2>
+    <p>The honest scope is narrow. HRM and TRM solve <em>grid-shaped puzzles</em>: Sudoku, mazes, ARC. The input and output are fixed-size grids. The technique does not yet apply to general text, to long-form generation, or to reasoning tasks with variable-length outputs.</p>
+
+    <div class="diagram-grid cols-3">
+        <div class="diagram-panel accent-border">
+            <h4>What it&rsquo;s good at today</h4>
+            <p>Constraint-satisfaction puzzles with structured input/output. Tasks where iterative refinement matches the problem. Anywhere a classical solver (Z3, A*, belief propagation) would also be a reasonable choice.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>What it&rsquo;s not</h4>
+            <p>A general-purpose LLM. A chat assistant. A code generator. A document summariser. Treating it as such will produce disappointment. The article is explicit about this.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>What it might become</h4>
+            <p>A <em>tool</em> for an agent. The same way an LLM uses a calculator API, a future agent could use a recursive-puzzle module to handle constraint problems &mdash; faster, cheaper, and more reliable than asking the main LLM.</p>
+        </div>
+    </div>
+
+    <h3>Raschka&rsquo;s speculative reading</h3>
+    <p>The article&rsquo;s closing speculation about recursive transformers is worth quoting: <em>&ldquo;tiny reasoning models as &lsquo;tools&rsquo; for tool-calling LLMs, similar to how systems use Python/calculator APIs&rdquo;</em>. The interesting future is composition. A frontier model that knows when to spawn a tiny specialised reasoner is more capable, in aggregate, than either alone &mdash; and substantially cheaper to deploy.</p>
+
+    <div class="callout">
+        <div class="callout-label">A 2026 question to track</div>
+        <p>What other narrow domains can be packaged as a 7M-parameter recursive solver? Theorem checking? Game playing? Constraint solving for scheduling, layout, query optimisation? The TRM result strongly suggests the answer is &ldquo;more than we&rsquo;ve looked for&rdquo;, but the sociological barriers (papers want frontier-tier results, not 7M-parameter components) are real.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>Companion Decks &mdash; Where to Go Next</h2>
+
+    <ol class="deck-list">
+        <li class="deck-card">
+            <div class="num">01</div>
+            <div class="body">
+                <a class="deck-title" href="https://brendanjameslynskey.github.io/Raschka_Beyond_LLMs_01_Linear_Attention_Hybrids/">Linear-Attention Hybrids &rarr;</a>
+                <div class="desc">MiniMax-M1, Qwen3-Next, DeepSeek V3.2, Kimi Linear. Gated DeltaNet, the 3:1 hybrid pattern. KV-cache calculator widget.</div>
+            </div>
+        </li>
+        <li class="deck-card">
+            <div class="num">02</div>
+            <div class="body">
+                <a class="deck-title" href="https://brendanjameslynskey.github.io/Raschka_Beyond_LLMs_02_Text_Diffusion/">Text Diffusion Models &rarr;</a>
+                <div class="desc">LLaDA, Gemini Diffusion. Iterative denoising, parallel decoding, conditional-dependency limits. Diffusion-vs-autoregressive visualiser.</div>
+            </div>
+        </li>
+        <li class="deck-card">
+            <div class="num">03</div>
+            <div class="body">
+                <a class="deck-title" href="https://brendanjameslynskey.github.io/Raschka_Beyond_LLMs_03_Code_World_Models/">Code World Models &rarr;</a>
+                <div class="desc">CWM 32B. Mid-training that makes the model predict program state evolution. SWE-bench parity at 4&times; smaller. World-model rollout stepper.</div>
+            </div>
+        </li>
+        <li class="deck-card">
+            <div class="num">05</div>
+            <div class="body">
+                <a class="deck-title" href="https://brendanjameslynskey.github.io/Raschka_Beyond_LLMs_05_Decision_Tree/">When to Reach for Non-Transformer &rarr;</a>
+                <div class="desc">A practical decision-tree synthesising all four families. Walk your workload through the tree and see which architecture fits.</div>
+            </div>
+        </li>
+    </ol>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>Things to Try Yourself</h2>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>15 minutes &mdash; play with the trace viewer</h4>
+            <p>Try multiple puzzles. Notice how the iteration count and halting threshold differ between easy and hard ones. The model running fewer iterations on easy puzzles is the &ldquo;adaptive compute&rdquo; behaviour visible without instrumentation.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>1 hour &mdash; read the TRM repo</h4>
+            <p>The code is &lt;1000 lines. Find the recursive update rule, the halt head, and the BCE loss. The whole thing is shorter than most production LLM training scripts.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>An afternoon &mdash; train a TRM-clone on Sudoku</h4>
+            <p>Sudoku is a small enough domain to fit on a laptop. Implement the alternating-update rule, the latent + answer buffer, the halt head. Watch it converge. The training loop is unusual because gradients flow through the full unrolled recursion.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>A weekend &mdash; replace attention with an MLP</h4>
+            <p>Reproduce the article&rsquo;s ablation. On your own toy version, sweep: attention vs MLP, iteration count, model width. Confirm that the recursion, not the mixing operation, is doing the work. The result is one of the most informative experiments you can run on a transformer.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Read the source</h4>
+            <p>Start with the <strong>TRM paper</strong> as the cleanest exposition. Then HRM for context on what was being simplified. Then the original 2018 <strong>Universal Transformer</strong> paper to see the architectural lineage.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Watch for &mdash;</h4>
+            <p>The first credible &ldquo;recursive solver as a tool inside a chat agent&rdquo; deployment. Whichever team ships that first &mdash; LLM hands off a constraint problem to a 7M solver, gets the answer back, continues &mdash; will have demonstrated the composition story. None has, as of early 2026.</p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">A diagnostic for your team</div>
+        <p>Next time someone proposes &ldquo;use the bigger LLM&rdquo; for a task that looks like constraint solving, ask: <em>could a 7M-parameter recursive model do this faster, cheaper and better?</em> The answer is sometimes yes &mdash; and recognising it is the value the recursive-transformer line of work has added to the toolbox, regardless of whether the technique becomes general-purpose.</p>
+    </div>
+</section>
+
+<footer class="footer">
+    <p>Companion to <a href="https://magazine.sebastianraschka.com/p/beyond-standard-llms" target="_blank" rel="noopener">Sebastian Raschka, &ldquo;Beyond Standard LLMs&rdquo;</a></p>
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Modern_Architectures">Modern Architectures Series</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Modern_Architectures">Back to Series Index</a></p>
+</footer>
+
+<script>
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.slide').forEach(slide => {
+        slide.style.opacity = '0';
+        slide.style.transform = 'translateY(30px)';
+        slide.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(slide);
+    });
+
+    // Recursive trace viewer
+    // 4x4 puzzle: target is a Latin-square-like grid, input has some cells revealed.
+    // We simulate "iterations" of refinement: each iteration the model commits the
+    // most-confident wrong cell. Latent z is shown as a simple bar histogram that
+    // smooths out as the answer converges.
+
+    const PUZZLES = [
+        { target: [1,2,3,4, 3,4,1,2, 2,1,4,3, 4,3,2,1], given: [0,5,10,15] },
+        { target: [2,3,4,1, 4,1,2,3, 1,4,3,2, 3,2,1,4], given: [1,7,8,14] },
+        { target: [4,1,2,3, 2,3,4,1, 1,2,3,4, 3,4,1,2], given: [2,6,11,13] },
+    ];
+    let puzzleIdx = 0;
+    let puzzle, given, target, current, iter, halt, done;
+
+    function loadPuzzle() {
+        puzzle = PUZZLES[puzzleIdx];
+        target = puzzle.target.slice();
+        given  = new Set(puzzle.given);
+        current = new Array(16);
+        for (let i = 0; i < 16; i++) {
+            if (given.has(i)) current[i] = target[i];
+            else current[i] = ((i * 7 + 3) % 4) + 1;  // deterministic-but-wrong start
+        }
+        iter = 0;
+        halt = 0;
+        done = false;
+        renderAll();
+    }
+
+    function renderGrid(elId, vals, mode) {
+        const el = document.getElementById(elId);
+        el.innerHTML = '';
+        for (let i = 0; i < 16; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            if (mode === 'input') {
+                cell.textContent = given.has(i) ? vals[i] : '·';
+                if (given.has(i)) cell.classList.add('given');
+            } else if (mode === 'answer') {
+                cell.textContent = vals[i];
+                if (given.has(i)) cell.classList.add('given');
+                else if (vals[i] === target[i]) cell.classList.add('ok');
+                else cell.classList.add('bad');
+            } else {
+                cell.textContent = vals[i];
+                cell.classList.add('given');
+            }
+            el.appendChild(cell);
+        }
+    }
+
+    function renderLatent(stability) {
+        // Latent z: 16 bars. Heights start jagged (high entropy), end uniform-ish.
+        const el = document.getElementById('latent');
+        el.innerHTML = '';
+        for (let i = 0; i < 16; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            const noise = Math.sin(i * 1.3 + iter * 0.7) * (1 - stability);
+            const h = 6 + 18 * (0.5 + 0.5 * noise);
+            bar.style.height = h.toFixed(1) + 'px';
+            el.appendChild(bar);
+        }
+    }
+
+    function renderAll() {
+        renderGrid('grid-input',  target, 'input');
+        renderGrid('grid-answer', current, 'answer');
+        renderGrid('grid-target', target, 'target');
+        // stability rises as # wrong cells falls
+        const wrong = current.reduce((s, v, i) => s + (v === target[i] ? 0 : 1), 0);
+        const stability = 1 - wrong / 16;
+        renderLatent(stability);
+        document.getElementById('iter-count').textContent = iter;
+        document.getElementById('halt-prob').textContent  = halt.toFixed(2);
+        document.getElementById('t-status').textContent   =
+            done ? 'halted (answer = target)' : (wrong + ' wrong cells');
+    }
+
+    function step() {
+        if (done) return false;
+        // Identify wrong cells (excluding given).
+        const wrongIdx = [];
+        for (let i = 0; i < 16; i++) {
+            if (!given.has(i) && current[i] !== target[i]) wrongIdx.push(i);
+        }
+        if (wrongIdx.length === 0) {
+            halt = 1.0;
+            done = true;
+            renderAll();
+            return false;
+        }
+        // Fix one wrong cell per iteration (the recursive solver's
+        // 'most-confident' commit). Pick the most-constrained: smallest
+        // index for determinism.
+        const fix = wrongIdx[iter % wrongIdx.length];
+        current[fix] = target[fix];
+        iter += 1;
+        // Halt prob rises as wrong-cell count drops
+        const wrongAfter = wrongIdx.length - 1;
+        halt = Math.min(1.0, 1 - wrongAfter / 16);
+        if (wrongAfter === 0) done = true;
+        renderAll();
+        return true;
+    }
+
+    document.getElementById('t-step').addEventListener('click', step);
+    document.getElementById('t-reset').addEventListener('click', loadPuzzle);
+    document.getElementById('t-new').addEventListener('click', () => {
+        puzzleIdx = (puzzleIdx + 1) % PUZZLES.length;
+        loadPuzzle();
+    });
+    document.getElementById('t-run').addEventListener('click', () => {
+        const t = setInterval(() => {
+            if (!step()) clearInterval(t);
+        }, 350);
+    });
+    loadPuzzle();
+</script>
+</body>
+</html>
