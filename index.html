@@ -9,12 +9,12 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0a0a0a; --bg-card: #0d1117; --bg-code: #161b22;
-            --text-primary: #e6edf3; --text-secondary: #8b949e;
-            --accent: #76B900; --accent-dim: #76B90044; --accent-glow: #76B90033;
-            --warm: #ffa657; --warm-dim: rgba(255,166,87,0.15);
-            --bad: #ff7b72;
-            --border: #21262d;
+            --bg-primary: #0f2027; --bg-card: #13272f; --bg-code: #182f38;
+            --text-primary: #ede7dd; --text-secondary: #8ca5a9;
+            --accent: #83c395; --accent-dim: #83c39544; --accent-glow: #83c39533;
+            --warm: #eac48b; --warm-dim: rgba(234,196,139,0.15);
+            --bad: #f48f70;
+            --border: #23404a;
             --font-display: 'Space Grotesk', sans-serif;
             --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
             --font-body: 'Inter', sans-serif;
@@ -77,7 +77,7 @@
         .slide li strong { color: var(--text-primary); }
         .slide code { font-family: var(--font-mono); font-size: 0.88em;
                       background: var(--bg-code); border: 1px solid var(--border);
-                      padding: 0.05rem 0.35rem; border-radius: 3px; color: #c9d1d9; }
+                      padding: 0.05rem 0.35rem; border-radius: 3px; color: #cfd7d1; }
         .table-wrap { overflow-x: auto; margin: 1.25rem 0; border-radius: 8px;
                       border: 1px solid var(--border); }
         table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -87,7 +87,7 @@
         td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border);
              color: var(--text-secondary); }
         tr:last-child td { border-bottom: none; }
-        tr:nth-child(even) td { background: rgba(13, 17, 23, 0.5); }
+        tr:nth-child(even) td { background: rgba(19,39,47,0.5); }
         .diagram-grid { display: grid; gap: 0.75rem; margin: 1.5rem 0;
                         padding: 1.5rem; background: var(--bg-card);
                         border: 1px solid var(--border); border-radius: 8px; }
@@ -176,7 +176,7 @@
                        background: var(--bg-card); color: var(--text-primary);
                        transition: background 0.2s, border-color 0.2s; }
         .grid4 .cell.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-        .grid4 .cell.bad   { border-color: var(--bad);    color: var(--bad);    background: rgba(255,123,114,0.15); }
+        .grid4 .cell.bad   { border-color: var(--bad);    color: var(--bad);    background: rgba(244,143,112,0.15); }
         .grid4 .cell.given { border-color: var(--text-primary); color: var(--text-primary); background: var(--bg-code); }
         .latent-bar { display: flex; gap: 2px; margin-top: 0.7rem;
                       justify-content: center; height: 28px; align-items: end; }
@@ -291,16 +291,16 @@
     <div class="canvas-wrap">
         <svg viewBox="0 0 720 240" width="720" height="240" xmlns="http://www.w3.org/2000/svg">
             <style>
-                .hbx { fill: #0d1117; stroke: #21262d; }
-                .hbxa { fill: #0d1117; stroke: #76B900; }
-                .ttl5 { fill: #76B900; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; }
-                .lbl5 { fill: #e6edf3; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-                .sub5 { fill: #8b949e; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
-                .arr5 { stroke: #76B900; stroke-width: 1.7; fill: none; marker-end: url(#a6); }
+                .hbx { fill: #13272f; stroke: #23404a; }
+                .hbxa { fill: #13272f; stroke: #83c395; }
+                .ttl5 { fill: #83c395; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; }
+                .lbl5 { fill: #ede7dd; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+                .sub5 { fill: #8ca5a9; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+                .arr5 { stroke: #83c395; stroke-width: 1.7; fill: none; marker-end: url(#a6); }
             </style>
             <defs>
                 <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#76B900"/>
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#83c395"/>
                 </marker>
             </defs>
             <rect class="hbxa" x="40" y="30" width="220" height="80" rx="6"/>
